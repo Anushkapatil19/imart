@@ -1,8 +1,12 @@
 package com.API.imart.controller;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,11 +17,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.API.imart.entities.Products;
 import com.API.imart.entities.Seller;
+import com.API.imart.repository.ProductRepository;
 import com.API.imart.repository.SellerRepository;
 import com.API.imart.services.AuditLogService;
+
 import com.API.imart.services.ProductService;
 import com.API.imart.services.SellerService;
 import jakarta.servlet.http.HttpSession;
@@ -34,6 +43,10 @@ public class ProductController {
 	private SellerRepository Srepo;
 	@Autowired
 	private AuditLogService auditLogService;
+	@Autowired
+	private ProductRepository Prepo;
+	
+	
 
 	// product fetch by seller id
 	@GetMapping("/productsOfSeller")
@@ -250,7 +263,65 @@ public class ProductController {
 
 		return ResponseEntity.ok(savedProduct);
 	}
+	
+	
+	private static final String BASE_UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/";
 
+	
+	
+	@PostMapping("/productsImage/upload")
+	public ResponseEntity<String> uploadImage(HttpSession session, @RequestBody MultipartFile file) {
+	    // Check if user is logged in
+		Integer sellerId = (Integer) session.getAttribute("LOGGED_IN_USER_ID");
+    	if (sellerId == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+		}
+    	Seller seller = Srepo.findById(sellerId).orElse(null);
+
+    
+
+    	    if (file.isEmpty()) {
+    	        return ResponseEntity.badRequest().body("File is empty.");
+    	    }
+
+    	    try {
+    	        // Define user-specific upload folder
+    	        String userFolderPath = BASE_UPLOAD_DIR + seller.getUsername() + "/";
+    	        File userDir = new File(userFolderPath);
+
+    	        // ✅ Create directory if it does not exist
+    	        if (!userDir.exists()) {
+    	            if (!userDir.mkdirs()) {
+    	                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to create directory.");
+    	            }
+    	        }
+
+    	        // Generate unique filename
+    	        String originalFilename = file.getOriginalFilename();
+    	        String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+    	        String newFileName = UUID.randomUUID().toString() + extension;
+
+    	        // ✅ Save file in the correct location
+    	        File destinationFile = new File(userFolderPath, newFileName);
+    	        file.transferTo(destinationFile);
+
+    	        // ✅ Return file path
+    	        String imageUrl = "/uploads/" + seller.getUsername() + "/" + newFileName;
+    	        return ResponseEntity.ok("Image uploaded successfully: " + imageUrl);
+
+    	    } catch (IOException e) {
+    	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error uploading file: " + e.getMessage());
+    	    }
+    	}
+
+	
+	 //All Products
+	  
+	  @GetMapping public List<Products> getProducts() { return
+	  productservice.getAllProducts(); }
+
+	   
+	    
 }
 
 
@@ -263,12 +334,10 @@ public class ProductController {
 
 
 
-/*
- * //All Products
- * 
- * @GetMapping public List<Products> getProducts() { return
- * productservice.getAllProducts(); }
-*/
+
+
+
+
  
 
 /*
